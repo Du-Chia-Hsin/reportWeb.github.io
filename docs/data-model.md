@@ -1,6 +1,6 @@
 # 資料模型現況記錄
 
-> 來源：模擬資料庫 Google Sheet `1HLySVEQRpB8cvcbiSnA4pdx1zWr7aHxvIHuuMX9KxVY`
+> 來源：模擬資料庫 Google Sheet（ID 不記錄於此，見內部文件）
 > 擷取日期：2026-08-31
 > 性質：**大約格式，非正式定案**。Sheet 的共用權限為暫時開放後已收回，此檔為當下快照。
 > 金鑰值已遮蔽（僅保留格式），實際值請看 Sheet。
