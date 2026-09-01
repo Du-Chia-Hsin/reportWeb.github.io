@@ -427,3 +427,23 @@ FodyWeavers.xsd
 *.msix
 *.msm
 *.msp
+
+# ---------------------------------------------------------------
+# 本專案（Node / Vite / Vue）
+# ---------------------------------------------------------------
+
+# 建置產物。GitHub Pages 讀 gh-pages 分支，由 `npm run deploy`
+# 用 gh-pages 套件推上去，不需要進主分支的版控。
+dist/
+
+# Vite 的相依前置打包快取
+**/node_modules/.vite/
+
+# 環境變數。原本的 *.env 漏掉了不帶前綴的 .env
+.env
+.env.*
+!.env.example
+
+# 測試產物
+/test-results/
+/playwright-report/
