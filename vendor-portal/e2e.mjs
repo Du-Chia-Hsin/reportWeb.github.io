@@ -27,28 +27,28 @@ const OPTIONS = {
 
 function issue(o) {
   return {
-    UUID: '', 議題編號: '', 項目代碼: 'DFM', 問題類型: '結構議題', 影響等級: 'P3',
-    內容: '', 處理方式: '', 目前狀態: '待確認', 提出者: 'DaoHe', 提出者類別: '廠商',
-    責任單位: 'AE01', 參與者: 'DaoHe,AE01', 登錄時間: '2026-08-01T10:00:00+08:00',
+    UUID: '', 議題編號: '', 項目代碼: 'PRJ1', 問題類型: '結構議題', 影響等級: 'P3',
+    內容: '', 處理方式: '', 目前狀態: '待確認', 提出者: 'VendorA', 提出者類別: '廠商',
+    責任單位: 'UNIT1', 參與者: 'VendorA,UNIT1', 登錄時間: '2026-08-01T10:00:00+08:00',
     最後更新時間: '2026-08-01T10:00:00+08:00', 預計完成日: '', 實際結案日: '',
     備註: '', 資料同步狀態: 'updated', 資料同步時間: '', 最後異動來源: '內部', ...o,
   };
 }
 
 const state = {
-  vendor: { code: 'DaoHe', name: '稻禾' },
+  vendor: { code: 'VendorA', name: '甲廠商' },
   projects: [
-    { 項目代碼: 'DFM', 專案名稱: 'AB', 設備名稱: 'ME01', canCreate: true },
-    { 項目代碼: 'DBP', 專案名稱: '', 設備名稱: '', canCreate: false },
+    { 項目代碼: 'PRJ1', 專案名稱: '測試專案甲', 設備名稱: 'EQ-01', canCreate: true },
+    { 項目代碼: 'PRJ2', 專案名稱: '', 設備名稱: '', canCreate: false },
   ],
   issues: [
-    issue({ UUID: 'u1', 議題編號: 'DFM_006', 影響等級: 'P3', 內容: '一般的結構問題', 目前狀態: '待確認',
+    issue({ UUID: 'u1', 議題編號: 'PRJ1_006', 影響等級: 'P3', 內容: '一般的結構問題', 目前狀態: '待確認',
             登錄時間: '2026-07-24T20:01:05+08:00' }),
-    issue({ UUID: 'u2', 議題編號: 'DFM_007', 影響等級: 'P1', 內容: '很急的問題', 目前狀態: '處理中',
+    issue({ UUID: 'u2', 議題編號: 'PRJ1_007', 影響等級: 'P1', 內容: '很急的問題', 目前狀態: '處理中',
             登錄時間: '2026-07-30T09:00:00+08:00', 預計完成日: '2026-09-04' }),
-    issue({ UUID: 'u3', 議題編號: 'DFM_008', 影響等級: 'P2', 內容: '已經解決了', 目前狀態: '已結案',
+    issue({ UUID: 'u3', 議題編號: 'PRJ1_008', 影響等級: 'P2', 內容: '已經解決了', 目前狀態: '已結案',
             實際結案日: '2026-08-02', 處理方式: '已更換零件' }),
-    issue({ UUID: 'u4', 議題編號: 'DBP_001', 項目代碼: 'DBP', 影響等級: 'P2', 內容: '別的專案的問題' }),
+    issue({ UUID: 'u4', 議題編號: 'PRJ2_001', 項目代碼: 'PRJ2', 影響等級: 'P2', 內容: '別的專案的問題' }),
   ],
   options: OPTIONS,
 };
@@ -63,14 +63,14 @@ async function mount(page) {
       captured.posts.push({ headers: req.headers(), body });
       if (body.action === 'create') {
         state.issues.push(issue({
-          UUID: body.payload.UUID, 議題編號: 'DFM_012', 項目代碼: body.payload.項目代碼,
+          UUID: body.payload.UUID, 議題編號: 'PRJ1_012', 項目代碼: body.payload.項目代碼,
           問題類型: body.payload.問題類型, 影響等級: body.payload.影響等級,
           內容: body.payload.內容, 備註: body.payload.備註 || '',
           目前狀態: '待確認', 資料同步狀態: 'pending', 最後異動來源: '廠商', 責任單位: '',
-          參與者: 'DaoHe', 登錄時間: '2026-09-01T12:00:00+08:00',
+          參與者: 'VendorA', 登錄時間: '2026-09-01T12:00:00+08:00',
         }));
         return route.fulfill({ contentType: 'application/json',
-          body: JSON.stringify({ ok: true, data: { UUID: body.payload.UUID, 議題編號: 'DFM_012', duplicated: false } }) });
+          body: JSON.stringify({ ok: true, data: { UUID: body.payload.UUID, 議題編號: 'PRJ1_012', duplicated: false } }) });
       }
       if (body.action === 'update') {
         const row = state.issues.find((i) => i.UUID === body.payload.UUID);
@@ -107,29 +107,29 @@ ck('失敗不留下金鑰', await page.evaluate(() => sessionStorage.getItem('re
 await page.fill('#key', KEY);
 await page.click('button.primary');
 await page.waitForSelector('.topbar');
-ck('登入後顯示廠商名稱', (await page.locator('.who').textContent()).trim() === '稻禾');
+ck('登入後顯示廠商名稱', (await page.locator('.who').textContent()).trim() === '甲廠商');
 ck('成功後金鑰存進 sessionStorage',
    await page.evaluate(() => sessionStorage.getItem('reportsys.apiKey')) === KEY);
 
 console.log('\n【專案分頁】');
 ck('兩個專案各一個分頁', await page.locator('.tabs button').count() === 2);
 ck('第一個分頁預設選取', await page.locator('.tabs button').first().getAttribute('class') === 'on');
-ck('分頁顯示未結案數（DFM 有 2 筆未結案）',
+ck('分頁顯示未結案數（PRJ1 有 2 筆未結案）',
    (await page.locator('.tabs button').first().locator('.pill').textContent()) === '2');
 ck('無專案名稱時退回顯示代碼',
-   (await page.locator('.tabs button').nth(1).textContent()).includes('DBP'));
+   (await page.locator('.tabs button').nth(1).textContent()).includes('PRJ2'));
 
 console.log('\n【統計與文案】');
 const dts = await page.locator('.stats dt').allTextContents();
 ck('寫「與您相關的議題」而非「議題總數」', dts[0] === '與您相關的議題', dts.join('/'));
 const dds = await page.locator('.stats dd').allTextContents();
-ck('DFM 相關議題 3 筆', dds[0] === '3', dds[0]);
-ck('DFM 未結案 2 筆', dds[1] === '2', dds[1]);
+ck('PRJ1 相關議題 3 筆', dds[0] === '3', dds[0]);
+ck('PRJ1 未結案 2 筆', dds[1] === '2', dds[1]);
 
 console.log('\n【列表與排序】');
 ck('預設只顯示未結案（2 筆）', await page.locator('.issue').count() === 2);
 const nos = await page.locator('.issue .no').allTextContents();
-ck('P1 排在 P3 前面', nos[0] === 'DFM_007', nos.join(','));
+ck('P1 排在 P3 前面', nos[0] === 'PRJ1_007', nos.join(','));
 ck('影響等級顯示中文簡稱而非 P 代碼',
    (await page.locator('.issue .chip').first().textContent()).trim() === '優先');
 ck('等級 tooltip 帶說明',
@@ -145,7 +145,7 @@ console.log('\n【建立權限】');
 ck('canCreate 的專案顯示新增鈕', await page.locator('.project-head button.primary').count() === 1);
 await page.click('.tabs button:nth-child(2)');
 ck('canCreate=false 的專案沒有新增鈕', await page.locator('.project-head button.primary').count() === 0);
-ck('切分頁後只顯示該專案議題', (await page.locator('.issue .no').first().textContent()) === 'DBP_001');
+ck('切分頁後只顯示該專案議題', (await page.locator('.issue .no').first().textContent()) === 'PRJ2_001');
 await page.click('.tabs button:nth-child(1)');
 
 console.log('\n【新增議題】');
@@ -158,7 +158,7 @@ await page.fill('#c-content', '新的測試議題');
 ck('填完後送出鈕啟用', !(await page.locator('.sheet button.primary').isDisabled()));
 await page.click('.sheet button.primary');
 await page.waitForSelector('.notice');
-ck('顯示建立成功訊息', (await page.locator('.notice').textContent()).includes('DFM_012'));
+ck('顯示建立成功訊息', (await page.locator('.notice').textContent()).includes('PRJ1_012'));
 
 const createPost = captured.posts.find((p) => p.body.action === 'create');
 ck('POST 用 text/plain（避開 CORS preflight）',
@@ -166,23 +166,23 @@ ck('POST 用 text/plain（避開 CORS preflight）',
 ck('前端自己產生 UUID v4',
    /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/.test(createPost.body.payload.UUID),
    createPost.body.payload.UUID);
-ck('項目代碼帶的是當前分頁', createPost.body.payload.項目代碼 === 'DFM');
+ck('項目代碼帶的是當前分頁', createPost.body.payload.項目代碼 === 'PRJ1');
 ck('影響等級送代碼不送中文', createPost.body.payload.影響等級 === 'P1');
 ck('沒有送出伺服器自己會填的欄位',
    !('提出者' in createPost.body.payload) && !('議題編號' in createPost.body.payload));
-ck('新議題出現在列表', (await page.locator('.issue .no').allTextContents()).includes('DFM_012'));
+ck('新議題出現在列表', (await page.locator('.issue .no').allTextContents()).includes('PRJ1_012'));
 
 console.log('\n【編輯處理方式】');
-await page.click('.issue:has-text("DFM_007") button.ghost');
-await page.fill('.issue:has-text("DFM_007") textarea >> nth=0', '已聯絡原廠');
-await page.click('.issue:has-text("DFM_007") button.primary');
+await page.click('.issue:has-text("PRJ1_007") button.ghost');
+await page.fill('.issue:has-text("PRJ1_007") textarea >> nth=0', '已聯絡原廠');
+await page.click('.issue:has-text("PRJ1_007") button.primary');
 await page.waitForFunction(() => !document.querySelector('.issue textarea'));
 const updPost = captured.posts.find((p) => p.body.action === 'update');
 ck('只送有改動的欄位', Object.keys(updPost.body.payload).sort().join(',') === 'UUID,處理方式',
    Object.keys(updPost.body.payload).join(','));
 ck('沒有整列送回（不會蓋掉內部的改動）', !('預計完成日' in updPost.body.payload));
 ck('畫面顯示更新後的處理方式',
-   (await page.locator('.issue:has-text("DFM_007")').textContent()).includes('已聯絡原廠'));
+   (await page.locator('.issue:has-text("PRJ1_007")').textContent()).includes('已聯絡原廠'));
 
 console.log('\n【登出】');
 await page.click('.topbar button:has-text("登出")');
