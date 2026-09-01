@@ -10,6 +10,7 @@ import { chromium } from 'playwright';
 const APP_URL = 'http://localhost:4173/reportWeb.github.io/';
 const GAS = /script\.google\.com/;
 const KEY = 'test-key';
+const STAFF_KEY = 'staff-key';
 
 let pass = 0, fail = 0;
 const ck = (n, c, d) => { c ? (pass++, console.log('  ✓ ' + n)) : (fail++, console.log('  ✗ ' + n + (d ? ' → ' + d : ''))); };
@@ -35,8 +36,16 @@ function issue(o) {
   };
 }
 
+const PARTIES = [
+  { code: 'VendorA', name: '甲廠商', 類別: '廠商' },
+  { code: 'VendorD', name: '丁廠商', 類別: '廠商' },
+  { code: 'UNIT1',   name: '單位一', 類別: '內部' },
+];
+
 const state = {
-  vendor: { code: 'VendorA', name: '甲廠商' },
+  vendor: { code: 'VendorA', name: '甲廠商', role: '廠商' },
+  writable: ['處理方式', '備註'],
+  parties: [],
   projects: [
     { 項目代碼: 'PRJ1', 專案名稱: '測試專案甲', 設備名稱: 'EQ-01', canCreate: true },
     { 項目代碼: 'PRJ2', 專案名稱: '', 設備名稱: '', canCreate: false },
@@ -81,11 +90,18 @@ async function mount(page) {
       }
     }
     const url = new URL(req.url());
-    if (url.searchParams.get('apiKey') !== KEY) {
+    const key = url.searchParams.get('apiKey');
+    if (key !== KEY && key !== STAFF_KEY) {
       return route.fulfill({ contentType: 'application/json',
         body: JSON.stringify({ ok: false, error: 'INVALID_KEY' }) });
     }
-    return route.fulfill({ contentType: 'application/json', body: JSON.stringify({ ok: true, data: state }) });
+    const data = key === STAFF_KEY
+      ? { ...state,
+          vendor: { code: 'UNIT1', name: '單位一', role: '內部' },
+          writable: ['處理方式', '備註', '目前狀態', '責任單位', '預計完成日', '實際結案日'],
+          parties: PARTIES }
+      : state;
+    return route.fulfill({ contentType: 'application/json', body: JSON.stringify({ ok: true, data }) });
   });
 }
 
@@ -212,6 +228,41 @@ ck('深色模式底色有換',
 await d.screenshot({ path: '/tmp/app-dark.png', fullPage: true });
 
 ck('全程沒有 console 錯誤', errors.length === 0, errors.join(' | '));
+
+
+console.log('\n【內部角色】');
+const st = await browser.newPage({ viewport: { width: 1100, height: 900 } });
+await mount(st);
+await st.goto(APP_URL);
+await st.fill('#key', STAFF_KEY);
+await st.click('button.primary');
+await st.waitForSelector('.topbar');
+ck('顯示內部角色標記', await st.locator('.role').textContent() === '內部');
+ck('統計文案改為「議題總數」',
+   (await st.locator('.stats dt').first().textContent()) === '議題總數');
+ck('編輯鈕文案為「編輯」',
+   (await st.locator('.issue button.ghost').first().textContent()).trim() === '編輯');
+
+await st.locator('.issue button.ghost').first().click();
+const labels = await st.locator('.issue label').allTextContents();
+ck('編輯表單依後端 writable 產生 6 個欄位', labels.length === 6, labels.join(','));
+ck('含目前狀態', labels.includes('目前狀態'));
+ck('含責任單位', labels.includes('責任單位'));
+// 用 label 定位，不寫死 UUID —— 前面的測試已經新增過議題，第一筆是誰會變
+const owner = st.locator('.issue').getByLabel('責任單位');
+ck('責任單位是下拉不是文字框',
+   await owner.evaluate((el) => el.tagName.toLowerCase()) === 'select');
+const partyOpts = await owner.locator('option').allTextContents();
+ck('責任單位選項來自名冊', partyOpts.some((o) => o.includes('甲廠商（VendorA）')), partyOpts.join('|'));
+const due = st.locator('.issue').getByLabel('預計完成日');
+ck('日期欄位用 date input',
+   await due.evaluate((el) => el.type) === 'date');
+await st.screenshot({ path: '/tmp/app-internal.png', fullPage: true });
+
+// 對照：廠商端只有兩個欄位
+await page.locator('.issue button.ghost').first().click();
+const vLabels = await page.locator('.issue label').allTextContents();
+ck('廠商端仍只有 2 個可編輯欄位', vLabels.length === 2, vLabels.join(','));
 
 console.log(`\n${'='.repeat(44)}\n通過 ${pass}，失敗 ${fail}\n`);
 await browser.close();

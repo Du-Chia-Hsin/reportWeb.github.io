@@ -14,6 +14,10 @@ const vendor       = ref(null)
 const projects     = ref([])
 const issues       = ref([])
 const options      = ref({ 問題類型: [], 影響等級: [], 目前狀態: [] })
+// 可寫欄位由後端依角色決定，前端不寫死角色判斷 ——
+// 權限規則只有後端一份，前端跟著走。
+const writable     = ref([])
+const parties      = ref([])
 const activeCode   = ref('')
 const statusFilter = ref('未結案')
 const loading      = ref(false)
@@ -33,6 +37,8 @@ async function load(key) {
     projects.value = data.projects
     issues.value   = data.issues
     options.value  = data.options
+    writable.value = data.writable || ['處理方式', '備註']
+    parties.value  = data.parties || []
     apiKey.value   = key
     sessionStorage.setItem(KEY_STORE, key)
     if (!projects.value.some((p) => p.項目代碼 === activeCode.value)) {
@@ -59,6 +65,8 @@ function signOut() {
   vendor.value = null
   projects.value = []
   issues.value = []
+  writable.value = []
+  parties.value = []
 }
 
 function refresh() {
@@ -115,12 +123,31 @@ function formatTime(iso) {
 // ---------------------------------------------------------------- 編輯
 
 const editingUuid = ref('')
-const draft       = ref({ 處理方式: '', 備註: '' })
+const draft       = ref({})
 const saving      = ref(false)
+
+const isInternal = computed(() => vendor.value?.role === '內部')
+
+/** 每個可寫欄位該用哪種輸入元件。未列出的一律用單行文字。 */
+const FIELD_KIND = {
+  處理方式: 'textarea', 備註: 'textarea',
+  問題類型: 'select', 影響等級: 'level', 目前狀態: 'select',
+  責任單位: 'party',
+  預計完成日: 'date', 實際結案日: 'date',
+}
+
+function fieldKind(name) {
+  return FIELD_KIND[name] || 'text'
+}
+
+function fieldOptions(name) {
+  return options.value[name] || []
+}
 
 function startEdit(issue) {
   editingUuid.value = issue.UUID
-  draft.value = { 處理方式: issue.處理方式 || '', 備註: issue.備註 || '' }
+  // 只放進這個角色能改的欄位，畫面就不會出現改了也存不進去的輸入框
+  draft.value = Object.fromEntries(writable.value.map((f) => [f, issue[f] || '']))
   notice.value = ''
 }
 
@@ -129,10 +156,11 @@ function cancelEdit() {
 }
 
 async function saveEdit(issue) {
-  // 只送真的改過的欄位。後端就只寫那幾格，內部同時改別的欄位不會被蓋掉。
+  // 只送真的改過的欄位。後端就只寫那幾格，另一方同時改別的欄位不會被蓋掉。
   const changes = {}
-  if (draft.value.處理方式 !== (issue.處理方式 || '')) changes.處理方式 = draft.value.處理方式
-  if (draft.value.備註 !== (issue.備註 || ''))       changes.備註 = draft.value.備註
+  writable.value.forEach((f) => {
+    if (draft.value[f] !== (issue[f] || '')) changes[f] = draft.value[f]
+  })
   if (!Object.keys(changes).length) return cancelEdit()
 
   saving.value = true
@@ -230,7 +258,10 @@ async function submitCompose() {
   <template v-else>
     <header class="topbar">
       <p class="brand"><i></i>機台議題回報</p>
-      <span class="who">{{ vendor.name }}</span>
+      <span class="who">
+        {{ vendor.name }}
+        <span v-if="isInternal" class="role">內部</span>
+      </span>
       <button class="ghost" :disabled="loading" @click="refresh">
         {{ loading ? '更新中…' : '重新整理' }}
       </button>
@@ -280,7 +311,7 @@ async function submitCompose() {
         -->
         <dl class="stats">
           <div>
-            <dt>與您相關的議題</dt>
+            <dt>{{ isInternal ? '議題總數' : '與您相關的議題' }}</dt>
             <dd>{{ projectIssues.length }}</dd>
           </div>
           <div>
@@ -301,7 +332,7 @@ async function submitCompose() {
         </div>
 
         <p v-if="!visibleIssues.length" class="empty">
-          {{ statusFilter === '全部' ? '這個專案還沒有與您相關的議題。' : `沒有${statusFilter}的議題。` }}
+          {{ statusFilter === '全部' ? (isInternal ? '這個專案還沒有議題。' : '這個專案還沒有與您相關的議題。') : `沒有${statusFilter}的議題。` }}
         </p>
 
         <article v-for="issue in visibleIssues" :key="issue.UUID" class="issue">
@@ -322,10 +353,46 @@ async function submitCompose() {
           <p class="content">{{ issue.內容 }}</p>
 
           <template v-if="editingUuid === issue.UUID">
-            <label :for="'r-' + issue.UUID">處理方式</label>
-            <textarea :id="'r-' + issue.UUID" v-model="draft.處理方式" rows="3"></textarea>
-            <label :for="'m-' + issue.UUID">備註</label>
-            <textarea :id="'m-' + issue.UUID" v-model="draft.備註" rows="2"></textarea>
+            <template v-for="f in writable" :key="f">
+              <label :for="f + '-' + issue.UUID">{{ f }}</label>
+
+              <textarea
+                v-if="fieldKind(f) === 'textarea'"
+                :id="f + '-' + issue.UUID"
+                v-model="draft[f]"
+                :rows="f === '處理方式' ? 3 : 2"
+              ></textarea>
+
+              <select v-else-if="fieldKind(f) === 'select'" :id="f + '-' + issue.UUID" v-model="draft[f]">
+                <option value=""></option>
+                <option v-for="o in fieldOptions(f)" :key="o" :value="o">{{ o }}</option>
+              </select>
+
+              <select v-else-if="fieldKind(f) === 'level'" :id="f + '-' + issue.UUID" v-model="draft[f]">
+                <option value=""></option>
+                <option v-for="l in options.影響等級" :key="l.code" :value="l.code">
+                  {{ l.label }} — {{ l.desc }}
+                </option>
+              </select>
+
+              <!-- 責任單位必須從名冊選，不能手打 —— 打錯一個字會讓對方看不到議題 -->
+              <select v-else-if="fieldKind(f) === 'party'" :id="f + '-' + issue.UUID" v-model="draft[f]">
+                <option value=""></option>
+                <option v-for="p in parties" :key="p.code" :value="p.code">
+                  {{ p.name }}（{{ p.code }}）
+                </option>
+              </select>
+
+              <input
+                v-else-if="fieldKind(f) === 'date'"
+                :id="f + '-' + issue.UUID"
+                v-model="draft[f]"
+                type="date"
+              />
+
+              <input v-else :id="f + '-' + issue.UUID" v-model="draft[f]" type="text" />
+            </template>
+
             <div class="row-actions">
               <button class="primary" :disabled="saving" @click="saveEdit(issue)">
                 {{ saving ? '儲存中…' : '儲存' }}
@@ -353,7 +420,7 @@ async function submitCompose() {
               </div>
             </dl>
             <div class="row-actions">
-              <button class="ghost" @click="startEdit(issue)">填寫處理方式</button>
+              <button class="ghost" @click="startEdit(issue)">{{ isInternal ? '編輯' : '填寫處理方式' }}</button>
             </div>
           </template>
         </article>
@@ -437,7 +504,11 @@ async function submitCompose() {
   border-bottom: 1px solid var(--line); background: var(--surface);
   position: sticky; top: 0; z-index: 5;
 }
-.who { margin-left: auto; font-size: 13.5px; font-weight: 600; }
+.who { margin-left: auto; font-size: 13.5px; font-weight: 600; display: flex; align-items: center; gap: 8px; }
+.role {
+  font: 700 10.5px/1 var(--mono); letter-spacing: .06em; padding: 4px 7px; border-radius: 3px;
+  color: var(--accent-ink); background: var(--accent);
+}
 
 /* ---------- 專案分頁 ---------- */
 .tabs {
