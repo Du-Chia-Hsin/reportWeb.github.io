@@ -194,5 +194,49 @@ check('壞掉的 JSON 不會炸掉',
       H.parse(doPost({postData:{contents:'{壞掉的'}})).error === 'INVALID_VALUE');
 check('未知 action 被拒', H.parse(doGet({parameter:{action:'drop_all'}})).error === 'MISSING_FIELD');
 
+
+console.log('\n【KeyAdmin：欄位以標題定位】');
+fresh();
+generateKeys();
+const keysAfter = H.readSheet('Keys');
+const hdr = keysAfter[0];
+const iHash = hdr.indexOf('金鑰雜湊'), iHint = hdr.indexOf('金鑰提示'),
+      iAct = hdr.indexOf('啟用狀態'), iIss = hdr.indexOf('產生日');
+// 範例資料的 Keys 已有雜湊，generateKeys 應該一列都不動
+check('已有雜湊的列不被覆寫', keysAfter[1][iHash] === keysAfter[1][iHash] &&
+      keysAfter[1][iHint] === '…0001');
+
+// 加一列沒有金鑰的廠商，確認寫進正確的欄
+fresh();
+H.getSheet('Keys').appendRow(['KuanBao', '', '', false, '', '']);
+generateKeys();
+const g = H.readSheet('Keys');
+const kRow = g[g.length - 1];
+check('雜湊寫進 金鑰雜湊 欄且長度為 44', String(kRow[iHash]).length === 44,
+      '長度 ' + String(kRow[iHash]).length);
+check('提示寫進 金鑰提示 欄', /^…[0-9a-f]{4}$/.test(String(kRow[iHint])), String(kRow[iHint]));
+check('啟用狀態被設為 true', kRow[iAct] === true);
+check('產生日有填', /^\d{4}-\d{2}-\d{2}$/.test(String(kRow[iIss])), String(kRow[iIss]));
+
+// 缺欄時必須擋下，而不是寫到隔壁欄
+fresh();
+H.setBook(Object.assign({}, H.book(), {
+  Keys: new H.FakeSheet('Keys', [
+    ['廠商代碼','金鑰雜湊','啟用狀態','產生日','備註'],   // 少了 金鑰提示
+    ['DaoHe','','',false,''],
+  ]),
+}));
+let blocked = false;
+try { generateKeys(); } catch (e) { blocked = /金鑰提示/.test(String(e)); }
+check('Keys 缺欄時擋下並指名缺哪一欄', blocked);
+
+console.log('\n【驗證與產生一致】');
+fresh();
+const plain = newPlainKey_();
+check('明文為 24 碼十六進位', /^[0-9a-f]{24}$/.test(plain), plain);
+check('SHA-256 base64 固定 44 字元', hashKey_(plain).length === 44,
+      '長度 ' + hashKey_(plain).length);
+
 console.log(`\n${'='.repeat(46)}\n通過 ${pass} 項，失敗 ${fail} 項\n`);
 process.exit(fail ? 1 : 0);
+

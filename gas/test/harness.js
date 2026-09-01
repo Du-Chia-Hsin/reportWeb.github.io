@@ -67,4 +67,12 @@ for (const f of ['Config', 'Repo', 'Auth', 'Api', 'KeyAdmin']) {
 }
 
 const parse = res => JSON.parse(res._s);
-module.exports = { FakeSheet, setBook: b => { BOOK = b; }, setProps: p => { PROPS = p; }, parse };
+module.exports = {
+  FakeSheet,
+  setBook: b => { BOOK = b; },
+  setProps: p => { PROPS = p; },
+  book: () => BOOK,
+  getSheet: n => BOOK[n],
+  readSheet: n => BOOK[n].grid.map(r => r.slice()),
+  parse,
+};
